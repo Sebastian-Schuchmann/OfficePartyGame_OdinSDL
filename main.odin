@@ -36,9 +36,9 @@ main :: proc() {
     ok := sdl.CreateWindowAndRenderer("Title", 1600, 1000, { .RESIZABLE }, &window, &renderer)
     sdl.SetRenderLogicalPresentation(renderer, 1600, 1000, .LETTERBOX)
     sdl.SetRenderScale(renderer, 2, 2)
-    sdl.SetRenderVSync(renderer, 1)
+    sdl.SetRenderVSync(renderer, 0)
 
-    rect := sdl.FRect{ 0, 0, 150, 150 }
+    rect := sdl.FRect{ 0, 200, 50, 50 }
     tick := sdl.GetTicksNS()
 
     main_loop: for {
@@ -76,7 +76,12 @@ main :: proc() {
         set_color(renderer, COLOR_DEEP_SAFFRON);
 
         sdl.RenderFillRect(renderer, &rect);
-        move_rect(&rect, Vec2{ 0.1, 0.1 }, dt_ms)
+
+        if left_btn_down {
+        move_rect(&rect, Vec2{ -2, 0.0}, dt_ms);
+        } else if right_btn_down {
+        move_rect(&rect, Vec2{ 2, 0.0}, dt_ms);
+        }
 
         sdl.RenderPresent(renderer)
     }
