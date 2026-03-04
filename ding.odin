@@ -1,4 +1,6 @@
 package main
+import "core:math"
+import "core:math/rand"
 import sdl "vendor:sdl3"
 
 Vec2 :: struct {
@@ -28,6 +30,13 @@ render_ding :: proc(renderer: ^sdl.Renderer, ding: Ding) {
 move_ding :: proc(ding: ^Ding, dir: Vec2) {
 	ding.pos.x += dir.x
 	ding.pos.y += dir.y
+}
+
+set_ding_to_rnd_pos :: proc(ding: ^Ding) {
+	x := rand.float32_range(0, cast(f32)WINDOW_WIDTH)
+	y := rand.float32_range(0, cast(f32)WINDOW_HEIGHT)
+
+	ding.pos = Vec2{x, y}
 }
 
 check_collision_ding :: proc(a: ^Ding, b: ^Ding) -> bool {

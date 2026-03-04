@@ -4,6 +4,9 @@ import "core:fmt"
 import strings "core:strings"
 import sdl "vendor:sdl3"
 
+WINDOW_WIDTH: i32 = 1600
+WINDOW_HEIGHT: i32 = 1000
+
 window: ^sdl.Window
 renderer: ^sdl.Renderer
 dt_ms: f64 = 0.0
@@ -43,6 +46,11 @@ game_loop :: proc() {
 	}
 
 	player_collides_with_collectible := check_collision_ding(&player, &collectible)
+
+	if player_collides_with_collectible {
+		set_ding_to_rnd_pos(&collectible)
+	}
+
 	draw_debug_text(renderer, Vec2{0, 30}, fmt.tprint("Collide", player_collides_with_collectible))
 	draw_debug_text(renderer, Vec2{0, 40}, fmt.tprint("Player Pos", player.pos))
 	draw_debug_text(renderer, Vec2{0, 50}, fmt.tprint("Collectible Pos", collectible.pos))
@@ -51,8 +59,18 @@ game_loop :: proc() {
 main :: proc() {
 
 	success := sdl.Init({.VIDEO})
-	ok := sdl.CreateWindowAndRenderer("Title", 1600, 1000, {.RESIZABLE}, &window, &renderer)
-	sdl.SetRenderLogicalPresentation(renderer, 1600, 1000, .LETTERBOX)
+
+
+	ok := sdl.CreateWindowAndRenderer(
+		"Title",
+		WINDOW_WIDTH,
+		WINDOW_HEIGHT,
+		{.RESIZABLE},
+		&window,
+		&renderer,
+	)
+
+	sdl.SetRenderLogicalPresentation(renderer, WINDOW_WIDTH, WINDOW_HEIGHT, .LETTERBOX)
 	sdl.SetRenderVSync(renderer, 0)
 
 	tick := sdl.GetTicksNS()
