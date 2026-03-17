@@ -19,6 +19,7 @@ Ding :: struct {
 	height:            f32,
 	// 3D
 	pos3:              Vec3,
+	vel3:              Vec3,
 	yaw:               f32,
 	pitch:             f32,
 	roll:              f32,
