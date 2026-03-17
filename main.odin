@@ -25,11 +25,12 @@ mouse_dy: f32
 mouse_locked: bool
 
 main :: proc() {
-	_ = sdl.Init({.VIDEO})
+	_ = sdl.Init({.VIDEO, .AUDIO, .GAMEPAD})
 
 	window = sdl.CreateWindow("Office Party Game", WINDOW_WIDTH, WINDOW_HEIGHT, {.RESIZABLE})
 
 	engine.gpu_init(window)
+	engine.audio_init()
 
 	tick := sdl.GetTicksNS()
 
@@ -84,10 +85,16 @@ main :: proc() {
 			case .MOUSE_MOTION:
 				mouse_dx += ev.motion.xrel
 				mouse_dy += ev.motion.yrel
+			case .GAMEPAD_ADDED:
+				engine.gamepad_on_added(ev.gdevice.which)
+			case .GAMEPAD_REMOVED:
+				engine.gamepad_on_removed(ev.gdevice.which)
 			}
 		}
 
-		input := game.Input {
+		gp := engine.gamepad_poll()
+
+		input := game.Input{
 			dt_ms        = dt_ms,
 			w            = w_key_down,
 			a            = a_key_down,
@@ -98,6 +105,7 @@ main :: proc() {
 			mouse_dx     = mouse_dx,
 			mouse_dy     = mouse_dy,
 			mouse_locked = mouse_locked,
+			gamepad      = gp,
 		}
 
 		if engine.gpu_begin_frame(window) {

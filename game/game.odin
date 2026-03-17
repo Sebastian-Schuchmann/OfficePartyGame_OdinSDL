@@ -8,6 +8,7 @@ Input :: struct {
 	w, a, s, d, q, e:   bool,
 	mouse_dx, mouse_dy: f32,
 	mouse_locked:       bool,
+	gamepad:            engine.GamepadState,
 }
 
 proj_mat:      engine.Mat4
