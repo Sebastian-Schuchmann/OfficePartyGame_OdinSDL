@@ -58,9 +58,16 @@ game_init :: proc(win_w, win_h: i32) {
 
 	proj_mat = engine.mat4_perspective(camera.fov, f32(win_w) / f32(win_h), 0.1, 1000)
 
+	// Directional light — warm overhead-ish light, slight ambient
+	engine.gpu_dir_light = engine.DirLight{
+		direction = {0.5, -1.0, -0.3},
+		color     = {1.0, 0.95, 0.88},
+		ambient   = 0.18,
+	}
+
 	// ---- Floor ----
 	floor_mat := alloc_material()
-	floor_mat^ = engine.Material{shader = .UNLIT, color = {0.23, 0.20, 0.18, 1}}
+	floor_mat^ = engine.Material{shader = .LIT, color = {0.23, 0.20, 0.18, 1}, specular = 0.05, shininess = 16}
 
 	floor_verts := []engine.Vertex{
 		{pos = {-20, 0, -20}, normal = {0, 1, 0}},
@@ -77,10 +84,10 @@ game_init :: proc(win_w, win_h: i32) {
 
 	// ---- Room (4 walls + ceiling) ----
 	wall_mat := alloc_material()
-	wall_mat^ = engine.Material{shader = .UNLIT, color = {0.82, 0.78, 0.74, 1}}
+	wall_mat^ = engine.Material{shader = .LIT, color = {0.82, 0.78, 0.74, 1}, specular = 0.02, shininess = 8}
 
 	ceiling_mat := alloc_material()
-	ceiling_mat^ = engine.Material{shader = .UNLIT, color = {0.92, 0.91, 0.90, 1}}
+	ceiling_mat^ = engine.Material{shader = .LIT, color = {0.92, 0.91, 0.90, 1}, specular = 0.01, shininess = 4}
 
 	room_verts := []engine.Vertex{
 		// Front wall (z=-20), normal +Z (points into room)
@@ -164,7 +171,7 @@ game_init :: proc(win_w, win_h: i32) {
 	// ---- OBJ cube (M9 verification) ----
 	if cube_mesh, ok := engine.obj_load("assets/cube.obj"); ok {
 		cube_mat := alloc_material()
-		cube_mat^ = engine.Material{shader = .UNLIT, color = {1, 0.8, 0.2, 1}}
+		cube_mat^ = engine.Material{shader = .LIT, color = {1, 0.8, 0.2, 1}, specular = 0.4, shininess = 64}
 		append(&scene, engine.Ding{
 			type     = .PROP,
 			pos3     = {0, 0, -3},

@@ -26,5 +26,6 @@ camera_update :: proc(input: Input) {
 	if input.e do camera.pos3.y += speed
 	if input.q do camera.pos3.y -= speed
 
-	view_proj_mat = proj_mat * engine.mat4_view(camera.pos3, camera.yaw, camera.pitch)
+	view_proj_mat    = proj_mat * engine.mat4_view(camera.pos3, camera.yaw, camera.pitch)
+	engine.gpu_cam_pos = camera.pos3
 }

@@ -22,22 +22,33 @@ GpuMesh :: struct {
 
 // Uniform structs (mirroring Metal shader structs)
 VertUniforms :: struct {
-	mvp:   Mat4,
-	model: Mat4,
+	mvp:     Mat4,
+	model:   Mat4,
+	cam_pos: Vec3,
+	_pad:    f32,
 }
 
 UnlitMatUniforms :: struct {
 	color: [4]f32,
 }
 
-gpu_device:   ^sdl.GPUDevice
+LitMatUniforms :: struct {
+	albedo:    [4]f32,
+	specular:  f32,
+	shininess: f32,
+	_pad:      [2]f32,
+}
+
+gpu_device:         ^sdl.GPUDevice
 gpu_pipeline_unlit: ^sdl.GPUGraphicsPipeline
+gpu_pipeline_lit:   ^sdl.GPUGraphicsPipeline
 
 gpu_cmd_buf:       ^sdl.GPUCommandBuffer
 gpu_render_pass:   ^sdl.GPURenderPass
 gpu_depth_texture: ^sdl.GPUTexture
 
 gpu_dir_light: DirLight // set by game each frame
+gpu_cam_pos:   Vec3     // set by camera_update each frame
 
 DEPTH_FORMAT :: sdl.GPUTextureFormat.D32_FLOAT
 
@@ -174,6 +185,13 @@ gpu_init :: proc(window: ^sdl.Window) {
 		1, 1,
 		swapchain_fmt,
 	)
+
+	gpu_pipeline_lit = gpu_build_pipeline(
+		"shaders/lit.metal",
+		"vert_main", "frag_main",
+		1, 3,
+		swapchain_fmt,
+	)
 }
 
 gpu_begin_frame :: proc(window: ^sdl.Window) -> bool {
@@ -207,16 +225,27 @@ gpu_end_frame :: proc() {
 
 gpu_draw_mesh :: proc(mesh: GpuMesh, model_mat: Mat4, mat: ^Material, view_proj_mat: Mat4) {
 	mvp := view_proj_mat * model_mat
+	vu  := VertUniforms{mvp = mvp, model = model_mat, cam_pos = gpu_cam_pos}
 
 	switch mat.shader {
 	case .UNLIT:
 		sdl.BindGPUGraphicsPipeline(gpu_render_pass, gpu_pipeline_unlit)
-		vu := VertUniforms{mvp = mvp, model = model_mat}
 		sdl.PushGPUVertexUniformData(gpu_cmd_buf, 0, &vu, size_of(vu))
 		um := UnlitMatUniforms{color = mat.color}
 		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 0, &um, size_of(um))
-	case .LIT, .TEXTURED_LIT:
-		// M10/M11: lit pipelines not yet built
+	case .LIT:
+		sdl.BindGPUGraphicsPipeline(gpu_render_pass, gpu_pipeline_lit)
+		sdl.PushGPUVertexUniformData(gpu_cmd_buf, 0, &vu, size_of(vu))
+		lm := LitMatUniforms{
+			albedo    = mat.color,
+			specular  = mat.specular,
+			shininess = mat.shininess,
+		}
+		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 0, &lm, size_of(lm))
+		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 1, &gpu_dir_light, size_of(gpu_dir_light))
+		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 2, &vu, size_of(vu))
+	case .TEXTURED_LIT:
+		// M11: textured pipeline not yet built
 		return
 	}
 
