@@ -9,13 +9,19 @@ Vertex :: struct {
 	col: [4]f32,
 }
 
+GpuMesh :: struct {
+	vertex_buf:  ^sdl.GPUBuffer,
+	index_buf:   ^sdl.GPUBuffer,
+	index_count: u32,
+}
+
 gpu_device:   ^sdl.GPUDevice
 gpu_pipeline: ^sdl.GPUGraphicsPipeline
 
 gpu_cmd_buf:     ^sdl.GPUCommandBuffer
 gpu_render_pass: ^sdl.GPURenderPass
 
-gpu_vertex_buf:   ^sdl.GPUBuffer
+gpu_vertex_buf:    ^sdl.GPUBuffer
 gpu_depth_texture: ^sdl.GPUTexture
 
 triangle_verts := [3]Vertex {
@@ -45,6 +51,39 @@ gpu_on_resize :: proc(w, h: i32) {
 	gpu_create_depth_texture(u32(w), u32(h))
 }
 
+// Upload a raw byte slice to a new GPU buffer with the given usage.
+gpu_upload_buffer :: proc(data: rawptr, size: int, usage: sdl.GPUBufferUsageFlags) -> ^sdl.GPUBuffer {
+	buf := sdl.CreateGPUBuffer(gpu_device, {usage = usage, size = u32(size)})
+
+	transfer := sdl.CreateGPUTransferBuffer(gpu_device, {usage = .UPLOAD, size = u32(size)})
+	ptr := sdl.MapGPUTransferBuffer(gpu_device, transfer, false)
+	mem.copy(ptr, data, size)
+	sdl.UnmapGPUTransferBuffer(gpu_device, transfer)
+
+	cmd  := sdl.AcquireGPUCommandBuffer(gpu_device)
+	pass := sdl.BeginGPUCopyPass(cmd)
+	sdl.UploadToGPUBuffer(
+		pass,
+		sdl.GPUTransferBufferLocation{transfer_buffer = transfer},
+		sdl.GPUBufferRegion{buffer = buf, size = u32(size)},
+		false,
+	)
+	sdl.EndGPUCopyPass(pass)
+	_ = sdl.SubmitGPUCommandBuffer(cmd)
+	sdl.ReleaseGPUTransferBuffer(gpu_device, transfer)
+
+	return buf
+}
+
+// Create a GPU mesh from vertices and u16 indices.
+gpu_create_mesh :: proc(verts: []Vertex, indices: []u16) -> GpuMesh {
+	return GpuMesh{
+		vertex_buf  = gpu_upload_buffer(raw_data(verts), len(verts) * size_of(Vertex), {.VERTEX}),
+		index_buf   = gpu_upload_buffer(raw_data(indices), len(indices) * size_of(u16), {.INDEX}),
+		index_count = u32(len(indices)),
+	}
+}
+
 gpu_init :: proc(window: ^sdl.Window) {
 	gpu_device = sdl.CreateGPUDevice({.MSL}, true, nil)
 	_ = sdl.ClaimWindowForGPUDevice(gpu_device, window)
@@ -70,10 +109,10 @@ gpu_init :: proc(window: ^sdl.Window) {
 	frag_shader := sdl.CreateGPUShader(
 		gpu_device,
 		{
-			format    = {.MSL},
-			stage     = .FRAGMENT,
-			code_size = len(msl_bytes),
-			code      = raw_data(msl_bytes),
+			format     = {.MSL},
+			stage      = .FRAGMENT,
+			code_size  = len(msl_bytes),
+			code       = raw_data(msl_bytes),
 			entrypoint = "frag_main",
 		},
 	)
@@ -97,9 +136,13 @@ gpu_init :: proc(window: ^sdl.Window) {
 				vertex_attributes     = raw_data(
 					[]sdl.GPUVertexAttribute {
 						{location = 0, buffer_slot = 0, format = .FLOAT3, offset = 0},
-						{location = 1, buffer_slot = 0, format = .FLOAT4, offset = size_of([2]f32)},
+						{location = 1, buffer_slot = 0, format = .FLOAT4, offset = size_of([3]f32)},
 					},
 				),
+			},
+			rasterizer_state = {
+				cull_mode  = .BACK,
+				front_face = .COUNTER_CLOCKWISE,
 			},
 			depth_stencil_state = {
 				enable_depth_test  = true,
@@ -107,10 +150,10 @@ gpu_init :: proc(window: ^sdl.Window) {
 				compare_op         = .LESS,
 			},
 			target_info = {
-				num_color_targets             = 1,
-				color_target_descriptions     = &sdl.GPUColorTargetDescription{format = swapchain_fmt},
-				has_depth_stencil_target      = true,
-				depth_stencil_format          = DEPTH_FORMAT,
+				num_color_targets         = 1,
+				color_target_descriptions = &sdl.GPUColorTargetDescription{format = swapchain_fmt},
+				has_depth_stencil_target  = true,
+				depth_stencil_format      = DEPTH_FORMAT,
 			},
 		},
 	)
@@ -118,30 +161,8 @@ gpu_init :: proc(window: ^sdl.Window) {
 	sdl.ReleaseGPUShader(gpu_device, vert_shader)
 	sdl.ReleaseGPUShader(gpu_device, frag_shader)
 
-	gpu_vertex_buf = sdl.CreateGPUBuffer(
-		gpu_device,
-		{usage = {.VERTEX}, size = size_of(triangle_verts)},
-	)
-
-	transfer := sdl.CreateGPUTransferBuffer(
-		gpu_device,
-		{usage = .UPLOAD, size = size_of(triangle_verts)},
-	)
-	ptr := sdl.MapGPUTransferBuffer(gpu_device, transfer, false)
-	mem.copy(ptr, &triangle_verts, size_of(triangle_verts))
-	sdl.UnmapGPUTransferBuffer(gpu_device, transfer)
-
-	upload_cmd := sdl.AcquireGPUCommandBuffer(gpu_device)
-	copy_pass  := sdl.BeginGPUCopyPass(upload_cmd)
-	sdl.UploadToGPUBuffer(
-		copy_pass,
-		sdl.GPUTransferBufferLocation{transfer_buffer = transfer},
-		sdl.GPUBufferRegion{buffer = gpu_vertex_buf, size = size_of(triangle_verts)},
-		false,
-	)
-	sdl.EndGPUCopyPass(copy_pass)
-	_ = sdl.SubmitGPUCommandBuffer(upload_cmd)
-	sdl.ReleaseGPUTransferBuffer(gpu_device, transfer)
+	// Upload legacy triangle vertex buffer (used by gpu_draw_triangle)
+	gpu_vertex_buf = gpu_upload_buffer(&triangle_verts, size_of(triangle_verts), {.VERTEX})
 }
 
 gpu_begin_frame :: proc(window: ^sdl.Window) -> bool {
@@ -180,6 +201,16 @@ gpu_draw_triangle :: proc(pos: Vec3, view_proj_mat: Mat4) {
 
 	binding := sdl.GPUBufferBinding{buffer = gpu_vertex_buf}
 	sdl.BindGPUVertexBuffers(gpu_render_pass, 0, &binding, 1)
-
 	sdl.DrawGPUPrimitives(gpu_render_pass, 3, 1, 0, 0)
+}
+
+gpu_draw_mesh :: proc(mesh: GpuMesh, pos: Vec3, view_proj_mat: Mat4) {
+	mvp := view_proj_mat * mat4_translate3(pos)
+	sdl.PushGPUVertexUniformData(gpu_cmd_buf, 0, &mvp, size_of(mvp))
+
+	v_binding := sdl.GPUBufferBinding{buffer = mesh.vertex_buf}
+	i_binding := sdl.GPUBufferBinding{buffer = mesh.index_buf}
+	sdl.BindGPUVertexBuffers(gpu_render_pass, 0, &v_binding, 1)
+	sdl.BindGPUIndexBuffer(gpu_render_pass, i_binding, ._16BIT)
+	sdl.DrawGPUIndexedPrimitives(gpu_render_pass, mesh.index_count, 1, 0, 0, 0)
 }

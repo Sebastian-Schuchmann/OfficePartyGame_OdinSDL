@@ -10,7 +10,7 @@ Input :: struct {
 	mouse_locked:       bool,
 }
 
-proj_mat: engine.Mat4
+proj_mat:      engine.Mat4
 view_proj_mat: engine.Mat4
 
 player: engine.Ding
@@ -22,15 +22,17 @@ camera := engine.Ding {
 }
 
 triangles := [5]engine.Ding {
-	{pos3 = engine.Vec3{0, 0, -5}, type = engine.DingType.TRIANGLE},
-	{pos3 = engine.Vec3{4, 0, -8}, type = engine.DingType.TRIANGLE},
-	{pos3 = engine.Vec3{-4, 0, -8}, type = engine.DingType.TRIANGLE},
-	{pos3 = engine.Vec3{2, 2, -12}, type = engine.DingType.TRIANGLE},
+	{pos3 = engine.Vec3{0, 0, -5},    type = engine.DingType.TRIANGLE},
+	{pos3 = engine.Vec3{4, 0, -8},    type = engine.DingType.TRIANGLE},
+	{pos3 = engine.Vec3{-4, 0, -8},   type = engine.DingType.TRIANGLE},
+	{pos3 = engine.Vec3{2, 2, -12},   type = engine.DingType.TRIANGLE},
 	{pos3 = engine.Vec3{-2, -2, -12}, type = engine.DingType.TRIANGLE},
 }
 
-dinge: [dynamic]^engine.Ding
+dinge:    [dynamic]^engine.Ding
 og_dinge: [dynamic]engine.Ding
+
+floor_mesh: engine.GpuMesh
 
 game_init :: proc(win_w, win_h: i32) {
 	player = engine.Ding {
@@ -48,6 +50,18 @@ game_init :: proc(win_w, win_h: i32) {
 	}
 
 	proj_mat = engine.mat4_perspective(camera.fov, f32(win_w) / f32(win_h), 0.1, 1000)
+
+	// Build floor quad: 40x40 units, sitting at y=0.
+	// Draw call translates it to y=-2 so it sits below the origin triangles.
+	// Vertices are CCW from above so backface culling keeps the top face.
+	floor_verts := []engine.Vertex {
+		{pos = {-20, 0, -20}, col = {0.25, 0.22, 0.20, 1}},
+		{pos = { 20, 0, -20}, col = {0.25, 0.22, 0.20, 1}},
+		{pos = { 20, 0,  20}, col = {0.20, 0.18, 0.16, 1}},
+		{pos = {-20, 0,  20}, col = {0.20, 0.18, 0.16, 1}},
+	}
+	floor_indices := []u16{0, 1, 2, 0, 2, 3}
+	floor_mesh = engine.gpu_create_mesh(floor_verts, floor_indices)
 }
 
 on_resize :: proc(win_w, win_h: i32) {
@@ -62,6 +76,8 @@ game_reset :: proc() {
 
 game_loop :: proc(input: Input) {
 	camera_update(input)
+
+	engine.gpu_draw_mesh(floor_mesh, {0, -2, 0}, view_proj_mat)
 
 	for t in triangles {
 		engine.gpu_draw_triangle(t.pos3, view_proj_mat)
