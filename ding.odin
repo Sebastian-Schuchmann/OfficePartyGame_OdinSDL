@@ -16,16 +16,23 @@ DingType :: enum {
 }
 
 Ding :: struct {
+	// 2D
 	pos:    Vec2,
 	color:  Color,
 	width:  f32,
 	height: f32,
+	// 3D
+	pos3:  Vec3,
+	yaw:   f32,
+	pitch: f32,
+	roll:  f32,
+	// Camera
+	fov:               f32,
+	mouse_sensitivity: f32,
+	// Shared
 	speed:  f32,
 	type:   DingType,
 	active: bool,
-	pos3:   Vec3,
-	yaw:    f32,
-	pitch:  f32,
 }
 
 

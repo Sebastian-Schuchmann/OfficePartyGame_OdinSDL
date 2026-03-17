@@ -63,6 +63,21 @@ mat4_perspective :: proc(fov_y, aspect, near, far: f32) -> Mat4 {
 	}
 }
 
+// View matrix from yaw/pitch FPS camera
+mat4_view :: proc(pos: Vec3, yaw, pitch: f32) -> Mat4 {
+	cx := math.cos(pitch)
+	sx := math.sin(pitch)
+	cy := math.cos(yaw)
+	sy := math.sin(yaw)
+	p  := pos
+	return Mat4{
+		cy,       0,   sy,      -(cy * p.x + sy * p.z),
+		sy * sx,  cx,  -cy * sx, -(sy * sx * p.x + cx * p.y - cy * sx * p.z),
+		-sy * cx, sx,  cy * cx,  sy * cx * p.x - sx * p.y - cy * cx * p.z,
+		0,        0,   0,       1,
+	}
+}
+
 // Orthographic projection: maps [left,right] x [bottom,top] -> [-1,1] NDC
 mat4_ortho :: proc(left, right, bottom, top: f32) -> Mat4 {
 	rl := right - left

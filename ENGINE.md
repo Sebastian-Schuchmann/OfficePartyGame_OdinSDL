@@ -10,12 +10,13 @@ Small feature → `odin run .` → approve → commit → next.
 
 | File | Owns |
 |---|---|
-| `main.odin` | Window, main loop, input, delta time |
+| `main.odin` | Window, main loop, input, delta time, mouse lock, resize handling |
 | `gpu.odin` | GPU device, pipeline, vertex buffer, frame lifecycle, draw calls |
-| `game.odin` | Game state, camera, view-projection matrix, game loop |
-| `math.odin` | `Mat4`, `mat4_identity`, `mat4_translate`, `mat4_ortho` |
-| `ding.odin` | `Vec2`, `Ding` struct, movement, collision |
-| `colors.odin` | Color constants |
+| `game.odin` | Game state globals (`camera`, `triangles`, `player`), `proj_mat`, game loop |
+| `camera.odin` | `camera_update()` — mouse look, WASD movement, builds `view_proj_mat` |
+| `math.odin` | `Vec3`, `Mat4`, `mat4_view`, `mat4_perspective`, `mat4_ortho`, transforms |
+| `ding.odin` | `Ding` fat struct, `DingType`, `Vec2`, movement, collision |
+| `colors.odin` | `Color` struct, named color constants |
 
 ---
 
@@ -29,6 +30,8 @@ gpu_begin_frame()
   BindGPUGraphicsPipeline
 
   game_loop()  ← draw calls go here
+    camera_update()
+    for each triangle: gpu_draw_triangle(pos3)
 
 gpu_end_frame()
   EndGPURenderPass
@@ -43,7 +46,7 @@ gpu_end_frame()
 |---|---|---|
 | 0 | ✅ | **Triangle** — shader-baked positions, no vertex buffer |
 | 1 | ✅ | **Vertex + Uniform buffer** — `Vertex` struct, GPU upload, MVP matrix pushed as uniform, movable triangle |
-| 2 | ✅ | **Camera + Math** — `mat4_ortho` (centered, 1 unit = 1 px), `camera_pos`, `view_proj_mat`, 300 px/s movement |
+| 2 | ✅ | **Fly-cam** — perspective projection, `mat4_view`, WASD+mouse look, multiple triangles, Ding-based camera, mouse lock/unlock |
 | 3 | | Mesh system (quad/sprite, index buffer, `render_ding` → GPU draw) |
 | 4 | | Multiple Dinge rendered via GPU (depth buffer if needed) |
 | 5 | | Textures + sampler (PNG loading, textured sprites) |
@@ -53,18 +56,3 @@ gpu_end_frame()
 ## Shader Strategy
 - All shaders live in `shaders/` as `.metal` files, loaded at startup via `os.read_entire_file`
 - One `.metal` file per render pass / effect
-
----
-
-## Ding Evolution (Milestone 3+)
-```odin
-Ding :: struct {
-    pos:   Vec3,
-    rot:   Vec3,  // Euler angles in degrees
-    scale: Vec3,
-    color: Color,
-    speed: f32,
-    type:  DingType,
-}
-```
-Until then, 2D Ding fields stay as-is.

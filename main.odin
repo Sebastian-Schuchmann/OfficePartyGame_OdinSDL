@@ -18,8 +18,9 @@ d_key_down: bool
 q_key_down: bool
 e_key_down: bool
 
-mouse_dx: f32
-mouse_dy: f32
+mouse_dx:     f32
+mouse_dy:     f32
+mouse_locked: bool
 
 main :: proc() {
 	_ = sdl.Init({.VIDEO})
@@ -32,6 +33,7 @@ main :: proc() {
 
 	game_init()
 
+	mouse_locked = true
 	_ = sdl.SetWindowRelativeMouseMode(window, true)
 
 	main_loop: for {
@@ -49,8 +51,19 @@ main :: proc() {
 			#partial switch ev.type {
 			case .QUIT:
 				break main_loop
+			case .WINDOW_RESIZED:
+				sdl.GetWindowSize(window, &WINDOW_WIDTH, &WINDOW_HEIGHT)
+				proj_mat = mat4_perspective(camera.fov, f32(WINDOW_WIDTH) / f32(WINDOW_HEIGHT), 0.1, 1000)
+			case .MOUSE_BUTTON_DOWN:
+				if !mouse_locked {
+					mouse_locked = true
+					_ = sdl.SetWindowRelativeMouseMode(window, true)
+				}
 			case .KEY_DOWN:
-				if ev.key.scancode == .ESCAPE do break main_loop
+				if ev.key.scancode == .ESCAPE {
+					mouse_locked = false
+					_ = sdl.SetWindowRelativeMouseMode(window, false)
+				}
 				if ev.key.scancode == .W do w_key_down = true
 				if ev.key.scancode == .A do a_key_down = true
 				if ev.key.scancode == .S do s_key_down = true
