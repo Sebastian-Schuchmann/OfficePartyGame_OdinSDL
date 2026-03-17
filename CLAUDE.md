@@ -26,7 +26,7 @@ Three Odin packages:
   - `gpu.odin` — SDL3 GPU API: device, pipeline, vertex buffer, frame lifecycle. `gpu_init(window)`, `gpu_begin_frame(window)`, `gpu_end_frame()`, `gpu_draw_triangle(pos, view_proj_mat)`.
 - **`package game`** (`game/`) — imports `engine`. Owns game state globals.
   - `game.odin` — `Input` struct, globals: `camera`, `triangles`, `player`, `proj_mat`, `view_proj_mat`. `game_init(w, h)` builds projection; `game_loop(input)` calls `camera_update` then dispatches draw calls. `on_resize(w, h)` recomputes `proj_mat`.
-  - `camera.odin` — `camera_update(input)`: mouse look, WASD/QE movement, writes `view_proj_mat`.
+  - `camera.odin` — `camera_update(input)`: mouse look, WASD horizontal movement, gravity + jump (Q), writes `view_proj_mat`. Constants: `GRAVITY=-14`, `FLOOR_Y=-2`, `EYE_HEIGHT=1.7`, `JUMP_SPEED=6`.
 
 ### Import convention
 ```odin
@@ -73,10 +73,10 @@ active: bool
 | 1 | ✅ | Vertex buffer + uniform buffer, movable triangle |
 | 2 | ✅ | Fly-cam, Ding fat struct, mouse lock, resize fix |
 | 3 | ✅ | Depth buffer — proper z-sorting, no more triangle bleed-through |
-| 4 | 🔲 | Indexed meshes + floor plane (quads, `GpuMesh`, `gpu_create_mesh`, `gpu_draw_mesh`) |
-| 5 | 🔲 | Backface culling + consistent winding order |
-| 6 | 🔲 | Gravity + ground collision — player walks on a surface |
-| 7 | 🔲 | Office room geometry (walls, ceiling, furniture as boxes) |
+| 4 | ✅ | Indexed meshes + floor plane (quads, `GpuMesh`, `gpu_create_mesh`, `gpu_draw_mesh`) |
+| 5 | ✅ | Backface culling + consistent winding order |
+| 6 | ✅ | Gravity + ground collision — player walks on a surface, Q to jump |
+| 7 | ✅ | Office room geometry (4 walls + ceiling, camera walks inside) |
 | 8 | 🔲 | Party game mechanics (objectives, scoring) |
 
 ### Key conventions

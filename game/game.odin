@@ -33,6 +33,7 @@ dinge:    [dynamic]^engine.Ding
 og_dinge: [dynamic]engine.Ding
 
 floor_mesh: engine.GpuMesh
+room_mesh:  engine.GpuMesh
 
 game_init :: proc(win_w, win_h: i32) {
 	player = engine.Ding {
@@ -51,17 +52,74 @@ game_init :: proc(win_w, win_h: i32) {
 
 	proj_mat = engine.mat4_perspective(camera.fov, f32(win_w) / f32(win_h), 0.1, 1000)
 
-	// Build floor quad: 40x40 units, sitting at y=0.
-	// Draw call translates it to y=-2 so it sits below the origin triangles.
-	// Vertices are CCW from above so backface culling keeps the top face.
+	// Floor quad: 40x40 at y=0, drawn at y=-2.
+	// CCW from above → top face is front face.
 	floor_verts := []engine.Vertex {
 		{pos = {-20, 0, -20}, col = {0.25, 0.22, 0.20, 1}},
 		{pos = { 20, 0, -20}, col = {0.25, 0.22, 0.20, 1}},
 		{pos = { 20, 0,  20}, col = {0.20, 0.18, 0.16, 1}},
 		{pos = {-20, 0,  20}, col = {0.20, 0.18, 0.16, 1}},
 	}
-	floor_indices := []u16{0, 1, 2, 0, 2, 3}
-	floor_mesh = engine.gpu_create_mesh(floor_verts, floor_indices)
+	floor_mesh = engine.gpu_create_mesh(floor_verts, []u16{0, 1, 2, 0, 2, 3})
+
+	// Room: 40×6 interior (x±20, z±20, y -2..4).
+	// All faces have CCW winding when viewed from INSIDE the room.
+	//
+	// Wall layout (viewed from above, camera inside):
+	//   front  (z=-20): normal +Z  → CCW in XY plane  → indices: 0,1,2  0,2,3
+	//   back   (z= 20): normal -Z  → CW  in XY plane  → indices: 0,2,1  0,3,2
+	//   left   (x=-20): normal +X  → reversed z-order → indices: 0,2,1  0,3,2
+	//   right  (x= 20): normal -X  → normal z-order   → indices: 0,1,2  0,2,3
+	//   ceiling(y=  4): normal -Y  → CCW in XZ plane  → indices: 0,1,2  0,2,3
+
+	wall_col   := [4]f32{0.82, 0.78, 0.74, 1}
+	ceiling_col := [4]f32{0.92, 0.91, 0.90, 1}
+
+	room_verts := []engine.Vertex {
+		// Front wall (z=-20), normal +Z: CCW order 0,1,2 / 0,2,3
+		{pos = {-20, -2, -20}, col = wall_col}, // 0
+		{pos = { 20, -2, -20}, col = wall_col}, // 1
+		{pos = { 20,  4, -20}, col = wall_col}, // 2
+		{pos = {-20,  4, -20}, col = wall_col}, // 3
+
+		// Back wall (z=20), normal -Z: reversed 0,2,1 / 0,3,2
+		{pos = {-20, -2,  20}, col = wall_col}, // 4
+		{pos = { 20, -2,  20}, col = wall_col}, // 5
+		{pos = { 20,  4,  20}, col = wall_col}, // 6
+		{pos = {-20,  4,  20}, col = wall_col}, // 7
+
+		// Left wall (x=-20), normal +X: order 0,2,1 / 0,3,2
+		{pos = {-20, -2, -20}, col = wall_col}, // 8
+		{pos = {-20, -2,  20}, col = wall_col}, // 9
+		{pos = {-20,  4,  20}, col = wall_col}, // 10
+		{pos = {-20,  4, -20}, col = wall_col}, // 11
+
+		// Right wall (x=20), normal -X: order 0,1,2 / 0,2,3
+		{pos = { 20, -2, -20}, col = wall_col}, // 12
+		{pos = { 20, -2,  20}, col = wall_col}, // 13
+		{pos = { 20,  4,  20}, col = wall_col}, // 14
+		{pos = { 20,  4, -20}, col = wall_col}, // 15
+
+		// Ceiling (y=4), normal -Y: order 0,1,2 / 0,2,3
+		{pos = {-20, 4, -20}, col = ceiling_col}, // 16
+		{pos = { 20, 4, -20}, col = ceiling_col}, // 17
+		{pos = { 20, 4,  20}, col = ceiling_col}, // 18
+		{pos = {-20, 4,  20}, col = ceiling_col}, // 19
+	}
+
+	room_indices := []u16 {
+		// Front wall (+Z normal)
+		0, 1, 2,   0, 2, 3,
+		// Back wall (-Z normal)
+		4, 6, 5,   4, 7, 6,
+		// Left wall (+X normal)
+		8, 10, 9,  8, 11, 10,
+		// Right wall (-X normal)
+		12, 13, 14,  12, 14, 15,
+		// Ceiling (-Y normal)
+		16, 18, 17,  16, 19, 18,
+	}
+	room_mesh = engine.gpu_create_mesh(room_verts, room_indices)
 }
 
 on_resize :: proc(win_w, win_h: i32) {
@@ -78,6 +136,7 @@ game_loop :: proc(input: Input) {
 	camera_update(input)
 
 	engine.gpu_draw_mesh(floor_mesh, {0, -2, 0}, view_proj_mat)
+	engine.gpu_draw_mesh(room_mesh,  {0,  0, 0}, view_proj_mat)
 
 	for t in triangles {
 		engine.gpu_draw_triangle(t.pos3, view_proj_mat)
