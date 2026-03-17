@@ -8,6 +8,12 @@ Vec2 :: struct {
 	y: f32,
 }
 
+DingType :: enum {
+	PLAYER,
+	OBSTACLE,
+	COLLECTABLE,
+}
+
 Ding :: struct {
 	pos:    Vec2,
 	color:  Color,
@@ -28,7 +34,7 @@ render_ding :: proc(renderer: ^sdl.Renderer, ding: Ding) {
 	rect := sdl.FRect{ding.pos.x, ding.pos.y, ding.width, ding.height}
 	sdl.RenderFillRect(renderer, &rect)
 
-	if DEBUG_DRAW_COLLISION {
+	if DEBUG {
 		collision_rect := shrink_rect(rect, COLLISION_PADDING)
 		set_color(renderer, COLOR_RED)
 		sdl.RenderRect(renderer, &collision_rect)
@@ -58,8 +64,7 @@ set_ding_to_rnd_pos :: proc(ding: ^Ding) {
 	ding.pos = Vec2{x, y}
 }
 
-COLLISION_PADDING: f32 = 0.10
-DEBUG_DRAW_COLLISION: bool = false
+COLLISION_PADDING: f32 = 0.05
 
 shrink_rect :: proc(rect: sdl.FRect, padding: f32) -> sdl.FRect {
 	d := math.min(rect.w, rect.h) * padding
