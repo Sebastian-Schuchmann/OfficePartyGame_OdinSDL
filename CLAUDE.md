@@ -24,6 +24,9 @@ Three Odin packages:
   - `ding.odin` — `Ding` fat struct, `DingType`, `GpuMesh` ref, movement and collision procs.
   - `colors.odin` — `Color` struct (RGBA u8) and named color constants.
   - `gpu.odin` — SDL3 GPU API: device, pipelines (unlit/lit/textured_lit), depth buffer, frame lifecycle. `gpu_init`, `gpu_begin_frame`, `gpu_end_frame`, `gpu_create_mesh`, `gpu_draw_ding`. Globals: `gpu_dir_light` (set by game each frame), `gpu_cam_pos` (set by camera_update).
+  - `shadow.odin` — Shadow map: 2048px D32_FLOAT shadow map, depth-only pass. `shadow_begin_pass / shadow_draw_ding / shadow_end_pass`. Call in game_loop before main pass. Globals: `gpu_shadow_map`, `gpu_light_space_mat` (auto-computed from `gpu_dir_light`).
+  - `audio.odin` — `audio_init`, `audio_load(path)→Sound`, `audio_play(sound)` (fire-and-forget SFX), `audio_play_music / audio_music_update / audio_stop_music` (looping). Call `audio_music_update` each frame for seamless loops.
+  - `gamepad.odin` — `GamepadState` (axes [-1,1] + buttons), `gamepad_on_added / gamepad_on_removed` (call from event loop), `gamepad_poll()→GamepadState`. Input.gamepad carries per-frame state.
   - `material.odin` — `Material` fat struct (all shader props in one; ShaderType selects pipeline), `DirLight`.
   - `obj.odin` — `obj_load(path)` — parses .obj files, fan-triangulates n-gons, computes flat normals if missing.
   - `texture.odin` — `gpu_load_texture(path)` — loads BMP, uploads to GPU; `gpu_default_sampler` (LINEAR/REPEAT).
@@ -113,7 +116,7 @@ Every rendered Ding needs a `material: ^Material`. Materials live in `game.mater
 | 9 | ✅ | OBJ mesh loading (`engine/obj.odin`, `assets/cube.obj`) |
 | 10 | ✅ | Blinn-Phong lighting — directional light, specular, `engine.gpu_dir_light` |
 | 11 | ✅ | Texture loading — BMP via SDL, `gpu_load_texture`, `TEXTURED_LIT` pipeline |
-| 12 | 🔲 | Shadows — shadow map from directional light |
-| 13 | 🔲 | Audio — SDL3 audio device, sound effect + music playback |
-| 14 | 🔲 | Controller input — SDL3 gamepad, axis-to-movement mapping |
+| 12 | ✅ | Shadow mapping — 2048px directional shadow map, PCF-ready |
+| 13 | ✅ | Audio — SDL3 audio device, WAV loading, SFX + looping music |
+| 14 | ✅ | Controller input — SDL3 gamepad, left stick moves, right stick looks |
 | 15 | 🔲 | Party game mechanics (objectives, scoring, rounds) |
