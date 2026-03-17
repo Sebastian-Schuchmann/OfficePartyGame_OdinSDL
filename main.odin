@@ -55,6 +55,7 @@ main :: proc() {
 				break main_loop
 			case .WINDOW_RESIZED:
 				sdl.GetWindowSize(window, &WINDOW_WIDTH, &WINDOW_HEIGHT)
+				engine.gpu_on_resize(WINDOW_WIDTH, WINDOW_HEIGHT)
 				game.on_resize(WINDOW_WIDTH, WINDOW_HEIGHT)
 			case .MOUSE_BUTTON_DOWN:
 				if !mouse_locked {

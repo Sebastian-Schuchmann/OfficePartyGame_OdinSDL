@@ -66,6 +66,19 @@ type:   DingType   — PLAYER, OBSTACLE, COLLECTABLE, CAMERA, TRIANGLE
 active: bool
 ```
 
+## Milestones
+
+| # | Status | Description |
+|---|--------|-------------|
+| 1 | ✅ | Vertex buffer + uniform buffer, movable triangle |
+| 2 | ✅ | Fly-cam, Ding fat struct, mouse lock, resize fix |
+| 3 | ✅ | Depth buffer — proper z-sorting, no more triangle bleed-through |
+| 4 | 🔲 | Indexed meshes + floor plane (quads, `GpuMesh`, `gpu_create_mesh`, `gpu_draw_mesh`) |
+| 5 | 🔲 | Backface culling + consistent winding order |
+| 6 | 🔲 | Gravity + ground collision — player walks on a surface |
+| 7 | 🔲 | Office room geometry (walls, ceiling, furniture as boxes) |
+| 8 | 🔲 | Party game mechanics (objectives, scoring) |
+
 ### Key conventions
 - `dt_ms` is frame delta in **milliseconds** (owned by `main`, passed via `Input`). For units/sec speeds: `speed * dt_ms / 1000`.
 - World space is perspective, `(0,0,0)` = origin. Camera starts at origin looking down -Z.
