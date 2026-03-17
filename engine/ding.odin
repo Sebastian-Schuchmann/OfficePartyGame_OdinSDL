@@ -9,6 +9,7 @@ DingType :: enum {
 	COLLECTABLE,
 	CAMERA,
 	TRIANGLE,
+	PROP,       // static scene geometry (floor, walls, furniture, etc.)
 }
 
 Ding :: struct {
@@ -26,6 +27,8 @@ Ding :: struct {
 	// Camera
 	fov:               f32,
 	mouse_sensitivity: f32,
+	// 3D mesh (zero if unused — Ding is drawn via gpu_draw_ding only if mesh.vertex_buf != nil)
+	mesh: GpuMesh,
 	// Shared
 	speed:             f32,
 	type:              DingType,

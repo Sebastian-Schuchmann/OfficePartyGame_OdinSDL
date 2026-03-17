@@ -18,17 +18,9 @@ GpuMesh :: struct {
 gpu_device:   ^sdl.GPUDevice
 gpu_pipeline: ^sdl.GPUGraphicsPipeline
 
-gpu_cmd_buf:     ^sdl.GPUCommandBuffer
-gpu_render_pass: ^sdl.GPURenderPass
-
-gpu_vertex_buf:    ^sdl.GPUBuffer
+gpu_cmd_buf:      ^sdl.GPUCommandBuffer
+gpu_render_pass:  ^sdl.GPURenderPass
 gpu_depth_texture: ^sdl.GPUTexture
-
-triangle_verts := [3]Vertex {
-	{pos = {0, 1, 0}, col = {1, 0, 0, 1}},
-	{pos = {-1, -1, 0}, col = {0, 1, 0, 1}},
-	{pos = {1, -1, 0}, col = {0, 0, 1, 1}},
-}
 
 DEPTH_FORMAT :: sdl.GPUTextureFormat.D32_FLOAT
 
@@ -160,9 +152,6 @@ gpu_init :: proc(window: ^sdl.Window) {
 
 	sdl.ReleaseGPUShader(gpu_device, vert_shader)
 	sdl.ReleaseGPUShader(gpu_device, frag_shader)
-
-	// Upload legacy triangle vertex buffer (used by gpu_draw_triangle)
-	gpu_vertex_buf = gpu_upload_buffer(&triangle_verts, size_of(triangle_verts), {.VERTEX})
 }
 
 gpu_begin_frame :: proc(window: ^sdl.Window) -> bool {
@@ -195,15 +184,6 @@ gpu_end_frame :: proc() {
 	_ = sdl.SubmitGPUCommandBuffer(gpu_cmd_buf)
 }
 
-gpu_draw_triangle :: proc(pos: Vec3, view_proj_mat: Mat4) {
-	mvp := view_proj_mat * mat4_translate3(pos)
-	sdl.PushGPUVertexUniformData(gpu_cmd_buf, 0, &mvp, size_of(mvp))
-
-	binding := sdl.GPUBufferBinding{buffer = gpu_vertex_buf}
-	sdl.BindGPUVertexBuffers(gpu_render_pass, 0, &binding, 1)
-	sdl.DrawGPUPrimitives(gpu_render_pass, 3, 1, 0, 0)
-}
-
 gpu_draw_mesh :: proc(mesh: GpuMesh, pos: Vec3, view_proj_mat: Mat4) {
 	mvp := view_proj_mat * mat4_translate3(pos)
 	sdl.PushGPUVertexUniformData(gpu_cmd_buf, 0, &mvp, size_of(mvp))
@@ -213,4 +193,10 @@ gpu_draw_mesh :: proc(mesh: GpuMesh, pos: Vec3, view_proj_mat: Mat4) {
 	sdl.BindGPUVertexBuffers(gpu_render_pass, 0, &v_binding, 1)
 	sdl.BindGPUIndexBuffer(gpu_render_pass, i_binding, ._16BIT)
 	sdl.DrawGPUIndexedPrimitives(gpu_render_pass, mesh.index_count, 1, 0, 0, 0)
+}
+
+// Draw a Ding at its pos3 using its mesh. No-op if mesh is not set.
+gpu_draw_ding :: proc(ding: Ding, view_proj_mat: Mat4) {
+	if ding.mesh.vertex_buf == nil do return
+	gpu_draw_mesh(ding.mesh, ding.pos3, view_proj_mat)
 }
