@@ -160,6 +160,18 @@ game_init :: proc(win_w, win_h: i32) {
 			material = tri_mats[i],
 		})
 	}
+
+	// ---- OBJ cube (M9 verification) ----
+	if cube_mesh, ok := engine.obj_load("assets/cube.obj"); ok {
+		cube_mat := alloc_material()
+		cube_mat^ = engine.Material{shader = .UNLIT, color = {1, 0.8, 0.2, 1}}
+		append(&scene, engine.Ding{
+			type     = .PROP,
+			pos3     = {0, 0, -3},
+			mesh     = cube_mesh,
+			material = cube_mat,
+		})
+	}
 }
 
 on_resize :: proc(win_w, win_h: i32) {
