@@ -23,7 +23,10 @@ Three Odin packages:
   - `math.odin` — `Vec2`, `Vec3`, `Mat4` + constructors: `mat4_identity`, `mat4_translate`, `mat4_translate3`, `mat4_view(pos, yaw, pitch)`, `mat4_perspective`, `mat4_ortho`.
   - `ding.odin` — `Ding` fat struct, `DingType`, `GpuMesh` ref, movement and collision procs.
   - `colors.odin` — `Color` struct (RGBA u8) and named color constants.
-  - `gpu.odin` — SDL3 GPU API: device, pipeline, depth buffer, frame lifecycle. `gpu_init(window)`, `gpu_begin_frame(window)`, `gpu_end_frame()`, `gpu_create_mesh(verts, indices)`, `gpu_draw_mesh(mesh, pos, vpm)`, `gpu_draw_ding(ding, vpm)`.
+  - `gpu.odin` — SDL3 GPU API: device, pipelines (unlit/lit/textured_lit), depth buffer, frame lifecycle. `gpu_init`, `gpu_begin_frame`, `gpu_end_frame`, `gpu_create_mesh`, `gpu_draw_ding`. Globals: `gpu_dir_light` (set by game each frame), `gpu_cam_pos` (set by camera_update).
+  - `material.odin` — `Material` fat struct (all shader props in one; ShaderType selects pipeline), `DirLight`.
+  - `obj.odin` — `obj_load(path)` — parses .obj files, fan-triangulates n-gons, computes flat normals if missing.
+  - `texture.odin` — `gpu_load_texture(path)` — loads BMP, uploads to GPU; `gpu_default_sampler` (LINEAR/REPEAT).
 - **`package game`** (`game/`) — imports `engine`. Owns game state globals.
   - `game.odin` — `Input` struct, globals: `camera`, `scene`, `player`, `proj_mat`, `view_proj_mat`. `game_init(w, h)` builds meshes and populates `scene`; `game_loop(input)` calls `camera_update` then draws all Dings in `scene`. `on_resize(w, h)` recomputes `proj_mat`.
   - `camera.odin` — fly-cam: mouse look, full 3D WASD + Q/E up-down, writes `view_proj_mat`.
@@ -60,7 +63,8 @@ vel3:  Vec3        — 3D velocity (e.g. for physics)
 yaw:   f32         — horizontal rotation (radians)
 pitch: f32         — vertical rotation (radians)
 roll:  f32
-mesh:  GpuMesh     — GPU mesh (zero if unused; gpu_draw_ding no-ops if vertex_buf == nil)
+mesh:     GpuMesh    — GPU mesh (zero if unused)
+material: ^Material  — points into game.materials pool (nil = gpu_draw_ding no-ops)
 
 // Camera-specific
 fov:               f32   — field of view (radians)
@@ -72,10 +76,20 @@ type:   DingType   — PLAYER, OBSTACLE, COLLECTABLE, CAMERA, TRIANGLE, PROP
 active: bool
 ```
 
+### Material system
+Every rendered Ding needs a `material: ^Material`. Materials live in `game.materials[MAX_MATERIALS]` (pool of 64); get a pointer with `alloc_material()`.
+
+`Material` is a fat struct — **all fields for all shaders live here, unused fields are zero**. Never split into per-shader structs.
+
+`ShaderType` selects the pipeline per draw:
+- `.UNLIT` — flat `material.color`, no lighting
+- `.LIT` — Blinn-Phong, reads `engine.gpu_dir_light` and `engine.gpu_cam_pos`
+- `.TEXTURED_LIT` — Blinn-Phong + BMP albedo texture via `material.albedo_tex`
+
 ### Scene rendering
 `game.scene: [dynamic]Ding` — all 3D objects to render each frame.
 `game_loop` calls `engine.gpu_draw_ding(d, view_proj_mat)` for every `d` in `scene`.
-`gpu_draw_ding` draws `d.mesh` at `d.pos3` — no-op if `d.mesh.vertex_buf == nil`.
+`gpu_draw_ding` no-ops if `d.mesh.vertex_buf == nil` or `d.material == nil`.
 
 ### Key conventions
 - `dt_ms` is frame delta in **milliseconds** (owned by `main`, passed via `Input`). For units/sec speeds: `speed * dt_ms / 1000`.
@@ -95,4 +109,11 @@ active: bool
 | 5 | ✅ | Backface culling (CCW front-face), correct vertex attribute offset |
 | 6 | ✅ | Fly-cam restored. Grounded physics saved in `physics.odin` for later |
 | 7 | ✅ | Office room geometry (4 walls + ceiling) — everything a `Ding` in `scene` |
-| 8 | 🔲 | Party game mechanics (objectives, scoring) |
+| 8 | ✅ | Material fat struct + Unlit shader pipeline |
+| 9 | ✅ | OBJ mesh loading (`engine/obj.odin`, `assets/cube.obj`) |
+| 10 | ✅ | Blinn-Phong lighting — directional light, specular, `engine.gpu_dir_light` |
+| 11 | ✅ | Texture loading — BMP via SDL, `gpu_load_texture`, `TEXTURED_LIT` pipeline |
+| 12 | 🔲 | Shadows — shadow map from directional light |
+| 13 | 🔲 | Audio — SDL3 audio device, sound effect + music playback |
+| 14 | 🔲 | Controller input — SDL3 gamepad, axis-to-movement mapping |
+| 15 | 🔲 | Party game mechanics (objectives, scoring, rounds) |
