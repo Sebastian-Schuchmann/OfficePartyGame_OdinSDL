@@ -1,7 +1,6 @@
 package main
 import "core:math"
 import "core:math/rand"
-import sdl "vendor:sdl3"
 
 Vec2 :: struct {
 	x: f32,
@@ -24,22 +23,6 @@ Ding :: struct {
 	active: bool,
 }
 
-get_f_rect_from_ding :: proc(ding: ^Ding) -> sdl.FRect {
-	rect := sdl.FRect{ding.pos.x, ding.pos.y, ding.width, ding.height}
-	return rect
-}
-
-render_ding :: proc(renderer: ^sdl.Renderer, ding: Ding) {
-	set_color(renderer, ding.color)
-	rect := sdl.FRect{ding.pos.x, ding.pos.y, ding.width, ding.height}
-	sdl.RenderFillRect(renderer, &rect)
-
-	if DEBUG {
-		collision_rect := shrink_rect(rect, COLLISION_PADDING)
-		set_color(renderer, COLOR_RED)
-		sdl.RenderRect(renderer, &collision_rect)
-	}
-}
 
 move_ding :: proc(ding: ^Ding, dir: Vec2) {
 	ding.pos.x += dir.x * cast(f32)dt_ms
@@ -66,13 +49,27 @@ set_ding_to_rnd_pos :: proc(ding: ^Ding) {
 
 COLLISION_PADDING: f32 = 0.05
 
-shrink_rect :: proc(rect: sdl.FRect, padding: f32) -> sdl.FRect {
-	d := math.min(rect.w, rect.h) * padding
-	return sdl.FRect{rect.x + d, rect.y + d, rect.w - d * 2, rect.h - d * 2}
+
+Rect2 :: struct {
+	x, y, w, h: f32,
+}
+
+get_rect_from_ding :: proc(ding: ^Ding) -> Rect2 {
+	return Rect2{ding.pos.x, ding.pos.y, ding.width, ding.height}
+}
+
+rects_overlap :: proc(a, b: Rect2) -> bool {
+	return a.x < b.x + b.w && a.x + a.w > b.x &&
+	       a.y < b.y + b.h && a.y + a.h > b.y
+}
+
+shrink_rect2 :: proc(r: Rect2, padding: f32) -> Rect2 {
+	d := math.min(r.w, r.h) * padding
+	return Rect2{r.x + d, r.y + d, r.w - d * 2, r.h - d * 2}
 }
 
 check_collision_ding :: proc(a: ^Ding, b: ^Ding) -> bool {
-	rect_a := shrink_rect(get_f_rect_from_ding(a), COLLISION_PADDING)
-	rect_b := shrink_rect(get_f_rect_from_ding(b), COLLISION_PADDING)
-	return sdl.HasRectIntersectionFloat(rect_a, rect_b)
+	rect_a := shrink_rect2(get_rect_from_ding(a), COLLISION_PADDING)
+	rect_b := shrink_rect2(get_rect_from_ding(b), COLLISION_PADDING)
+	return rects_overlap(rect_a, rect_b)
 }
