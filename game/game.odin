@@ -195,6 +195,14 @@ game_reset :: proc() {
 game_loop :: proc(input: Input) {
 	camera_update(input)
 
+	// Shadow pass — render all opaque scene Dings into the shadow map.
+	engine.shadow_begin_pass()
+	for d in scene {
+		engine.shadow_draw_ding(d)
+	}
+	engine.shadow_end_pass()
+
+	// Main render pass — draw all scene Dings with full lighting + shadows.
 	for d in scene {
 		engine.gpu_draw_ding(d, view_proj_mat)
 	}

@@ -8,10 +8,11 @@ struct VertIn {
 };
 
 struct VertOut {
-    float4 clip_pos  [[position]];
+    float4 clip_pos     [[position]];
     float3 world_pos;
     float3 world_norm;
     float2 uv;
+    float4 light_space_pos;
 };
 
 struct VertUniforms {
@@ -19,6 +20,10 @@ struct VertUniforms {
     float4x4 model;
     float3   cam_pos;
     float    _pad;
+};
+
+struct LightSpaceUniforms {
+    float4x4 light_vp;
 };
 
 struct LitMat {
@@ -36,14 +41,27 @@ struct DirLight {
 };
 
 vertex VertOut vert_main(VertIn in [[stage_in]],
-                         constant VertUniforms& u [[buffer(0)]]) {
+                         constant VertUniforms& u       [[buffer(0)]],
+                         constant LightSpaceUniforms& l [[buffer(1)]]) {
     VertOut out;
-    float4 world = u.model * float4(in.pos, 1.0);
-    out.clip_pos  = u.mvp * float4(in.pos, 1.0);
-    out.world_pos = world.xyz;
-    out.world_norm = normalize((u.model * float4(in.normal, 0.0)).xyz);
-    out.uv = in.uv;
+    float4 world    = u.model * float4(in.pos, 1.0);
+    out.clip_pos    = u.mvp * float4(in.pos, 1.0);
+    out.world_pos   = world.xyz;
+    out.world_norm  = normalize((u.model * float4(in.normal, 0.0)).xyz);
+    out.uv          = in.uv;
+    out.light_space_pos = l.light_vp * world;
     return out;
+}
+
+static float shadow_factor(texture2d<float> shadow_map, sampler smp, float4 light_space_pos) {
+    float3 proj = light_space_pos.xyz / light_space_pos.w;
+    float2 uv   = proj.xy * 0.5 + 0.5;
+    uv.y = 1.0 - uv.y;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
+    if (proj.z < 0.0 || proj.z > 1.0) return 1.0;
+    float depth = shadow_map.sample(smp, uv).r;
+    float bias  = 0.005;
+    return (proj.z - bias > depth) ? 0.35 : 1.0;
 }
 
 fragment float4 frag_main(VertOut in                         [[stage_in]],
@@ -51,16 +69,20 @@ fragment float4 frag_main(VertOut in                         [[stage_in]],
                            constant DirLight&  light          [[buffer(1)]],
                            constant VertUniforms& u           [[buffer(2)]],
                            texture2d<float>    albedo_tex     [[texture(0)]],
-                           sampler             albedo_smp     [[sampler(0)]]) {
+                           sampler             albedo_smp     [[sampler(0)]],
+                           texture2d<float>    shadow_map     [[texture(1)]],
+                           sampler             shadow_smp     [[sampler(1)]]) {
     float3 N = normalize(in.world_norm);
     float3 L = normalize(-light.direction);
     float3 V = normalize(u.cam_pos - in.world_pos);
     float3 H = normalize(L + V);
 
-    float diff = max(dot(N, L), 0.0);
+    float shadow = shadow_factor(shadow_map, shadow_smp, in.light_space_pos);
+
+    float diff = max(dot(N, L), 0.0) * shadow;
     float spec = 0.0;
     if (mat.shininess > 0.0) {
-        spec = pow(max(dot(N, H), 0.0), mat.shininess) * mat.specular;
+        spec = pow(max(dot(N, H), 0.0), mat.shininess) * mat.specular * shadow;
     }
 
     float4 tex_color = albedo_tex.sample(albedo_smp, in.uv);

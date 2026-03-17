@@ -189,21 +189,25 @@ gpu_init :: proc(window: ^sdl.Window) {
 		swapchain_fmt,
 	)
 
+	// lit: vertex has 2 uniform slots (VertUniforms + LightSpaceUniforms),
+	// fragment has 3 uniform slots + 1 sampler (shadow_map)
 	gpu_pipeline_lit = gpu_build_pipeline(
 		"shaders/lit.metal",
 		"vert_main", "frag_main",
-		1, 3, 0,
+		2, 3, 1,
 		swapchain_fmt,
 	)
 
+	// textured_lit: vertex same as lit; fragment has 3 uniform slots + 2 samplers
 	gpu_pipeline_textured_lit = gpu_build_pipeline(
 		"shaders/textured_lit.metal",
 		"vert_main", "frag_main",
-		1, 3, 1,
+		2, 3, 2,
 		swapchain_fmt,
 	)
 
 	gpu_texture_init()
+	shadow_init()
 }
 
 gpu_begin_frame :: proc(window: ^sdl.Window) -> bool {
@@ -247,7 +251,9 @@ gpu_draw_mesh :: proc(mesh: GpuMesh, model_mat: Mat4, mat: ^Material, view_proj_
 		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 0, &um, size_of(um))
 	case .LIT:
 		sdl.BindGPUGraphicsPipeline(gpu_render_pass, gpu_pipeline_lit)
+		lu := LightSpaceUniforms{light_vp = gpu_light_space_mat}
 		sdl.PushGPUVertexUniformData(gpu_cmd_buf, 0, &vu, size_of(vu))
+		sdl.PushGPUVertexUniformData(gpu_cmd_buf, 1, &lu, size_of(lu))
 		lm := LitMatUniforms{
 			albedo    = mat.color,
 			specular  = mat.specular,
@@ -256,10 +262,14 @@ gpu_draw_mesh :: proc(mesh: GpuMesh, model_mat: Mat4, mat: ^Material, view_proj_
 		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 0, &lm, size_of(lm))
 		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 1, &gpu_dir_light, size_of(gpu_dir_light))
 		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 2, &vu, size_of(vu))
+		shadow_binding := sdl.GPUTextureSamplerBinding{texture = gpu_shadow_map, sampler = gpu_shadow_sampler}
+		sdl.BindGPUFragmentSamplers(gpu_render_pass, 0, &shadow_binding, 1)
 	case .TEXTURED_LIT:
 		if mat.albedo_tex == nil do return
 		sdl.BindGPUGraphicsPipeline(gpu_render_pass, gpu_pipeline_textured_lit)
+		lu := LightSpaceUniforms{light_vp = gpu_light_space_mat}
 		sdl.PushGPUVertexUniformData(gpu_cmd_buf, 0, &vu, size_of(vu))
+		sdl.PushGPUVertexUniformData(gpu_cmd_buf, 1, &lu, size_of(lu))
 		lm := LitMatUniforms{
 			albedo    = mat.color,
 			specular  = mat.specular,
@@ -269,8 +279,11 @@ gpu_draw_mesh :: proc(mesh: GpuMesh, model_mat: Mat4, mat: ^Material, view_proj_
 		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 1, &gpu_dir_light, size_of(gpu_dir_light))
 		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 2, &vu, size_of(vu))
 		smp := mat.sampler if mat.sampler != nil else gpu_default_sampler
-		tex_binding := sdl.GPUTextureSamplerBinding{texture = mat.albedo_tex, sampler = smp}
-		sdl.BindGPUFragmentSamplers(gpu_render_pass, 0, &tex_binding, 1)
+		bindings := [2]sdl.GPUTextureSamplerBinding{
+			{texture = mat.albedo_tex,  sampler = smp},
+			{texture = gpu_shadow_map,  sampler = gpu_shadow_sampler},
+		}
+		sdl.BindGPUFragmentSamplers(gpu_render_pass, 0, &bindings[0], 2)
 	}
 
 	v_binding := sdl.GPUBufferBinding{buffer = mesh.vertex_buf}

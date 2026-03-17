@@ -1,6 +1,7 @@
 package engine
 
 import "core:math"
+import "core:math/linalg"
 
 Vec2 :: struct {
 	x: f32,
@@ -79,6 +80,20 @@ mat4_view :: proc(pos: Vec3, yaw, pitch: f32) -> Mat4 {
 		0,
 		0,
 		1,
+	}
+}
+
+// Look-at view matrix: eye looking toward center with given up vector.
+// Up does not need to be perpendicular to (center-eye) — it is orthogonalized.
+mat4_lookat :: proc(eye, center, up: Vec3) -> Mat4 {
+	f := linalg.normalize(center - eye)
+	r := linalg.normalize(linalg.cross(f, up))
+	u := linalg.cross(r, f)
+	return Mat4{
+		 r.x,  r.y,  r.z, -linalg.dot(r, eye),
+		 u.x,  u.y,  u.z, -linalg.dot(u, eye),
+		-f.x, -f.y, -f.z,  linalg.dot(f, eye),
+		 0,    0,    0,    1,
 	}
 }
 
