@@ -11,6 +11,8 @@ DingType :: enum {
 	PLAYER,
 	OBSTACLE,
 	COLLECTABLE,
+	CAMERA,
+	TRIANGLE,
 }
 
 Ding :: struct {
@@ -21,6 +23,9 @@ Ding :: struct {
 	speed:  f32,
 	type:   DingType,
 	active: bool,
+	pos3:   Vec3,
+	yaw:    f32,
+	pitch:  f32,
 }
 
 

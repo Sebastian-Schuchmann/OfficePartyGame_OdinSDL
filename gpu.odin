@@ -5,11 +5,9 @@ import "core:os"
 import sdl "vendor:sdl3"
 
 Vertex :: struct {
-	pos: [2]f32,
+	pos: [3]f32,
 	col: [4]f32,
 }
-
-Mat4 :: matrix[4, 4]f32
 
 gpu_device:   ^sdl.GPUDevice
 gpu_pipeline: ^sdl.GPUGraphicsPipeline
@@ -20,9 +18,9 @@ gpu_render_pass: ^sdl.GPURenderPass
 gpu_vertex_buf: ^sdl.GPUBuffer
 
 triangle_verts := [3]Vertex{
-	{pos = {0.0, 0.5},   col = {1, 0, 0, 1}},
-	{pos = {-0.5, -0.5}, col = {0, 1, 0, 1}},
-	{pos = {0.5, -0.5},  col = {0, 0, 1, 1}},
+	{pos = { 0,  1, 0}, col = {1, 0, 0, 1}},
+	{pos = {-1, -1, 0}, col = {0, 1, 0, 1}},
+	{pos = { 1, -1, 0}, col = {0, 0, 1, 1}},
 }
 
 gpu_init :: proc() {
@@ -63,7 +61,7 @@ gpu_init :: proc() {
 			},
 			num_vertex_attributes = 2,
 			vertex_attributes     = raw_data([]sdl.GPUVertexAttribute{
-				{location = 0, buffer_slot = 0, format = .FLOAT2, offset = 0},
+				{location = 0, buffer_slot = 0, format = .FLOAT3, offset = 0},
 				{location = 1, buffer_slot = 0, format = .FLOAT4, offset = size_of([2]f32)},
 			}),
 		},
@@ -127,13 +125,8 @@ gpu_end_frame :: proc() {
 	_ = sdl.SubmitGPUCommandBuffer(gpu_cmd_buf)
 }
 
-gpu_draw_triangle :: proc(pos: Vec2) {
-	mvp := Mat4{
-		1, 0, 0, 0,
-		0, 1, 0, 0,
-		0, 0, 1, 0,
-		pos.x, pos.y, 0, 1,
-	}
+gpu_draw_triangle :: proc(pos: Vec3) {
+	mvp := view_proj_mat * mat4_translate3(pos)
 	sdl.PushGPUVertexUniformData(gpu_cmd_buf, 0, &mvp, size_of(mvp))
 
 	binding := sdl.GPUBufferBinding{buffer = gpu_vertex_buf}

@@ -2,7 +2,7 @@
 using namespace metal;
 
 struct VertIn {
-    float2 pos [[attribute(0)]];
+    float3 pos [[attribute(0)]];
     float4 col [[attribute(1)]];
 };
 
@@ -14,7 +14,7 @@ struct VertOut {
 vertex VertOut vert_main(VertIn in [[stage_in]],
                          constant float4x4& mvp [[buffer(0)]]) {
     VertOut out;
-    out.pos = mvp * float4(in.pos, 0, 1);
+    out.pos = mvp * float4(in.pos, 1);
     out.col = in.col;
     return out;
 }

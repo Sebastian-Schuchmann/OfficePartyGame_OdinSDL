@@ -11,9 +11,10 @@ Small feature → `odin run .` → approve → commit → next.
 | File | Owns |
 |---|---|
 | `main.odin` | Window, main loop, input, delta time |
-| `gpu.odin` | GPU device, pipeline, frame lifecycle |
-| `game.odin` | Game state, entity arrays, game loop |
-| `ding.odin` | `Ding` struct, movement, collision |
+| `gpu.odin` | GPU device, pipeline, vertex buffer, frame lifecycle, draw calls |
+| `game.odin` | Game state, camera, view-projection matrix, game loop |
+| `math.odin` | `Mat4`, `mat4_identity`, `mat4_translate`, `mat4_ortho` |
+| `ding.odin` | `Vec2`, `Ding` struct, movement, collision |
 | `colors.odin` | Color constants |
 
 ---
@@ -38,14 +39,14 @@ gpu_end_frame()
 
 ## Milestone Roadmap
 
-| # | Goal |
-|---|---|
-| 0 | **Triangle** — shader-baked positions, no vertex buffer |
-| 1 | Vertex buffer + uniform buffer (MVP matrix, movable triangle) |
-| 2 | Camera + math (Vec3, Mat4, perspective, WASD controls) |
-| 3 | Mesh system (cube, index buffer, `render_ding` → GPU) |
-| 4 | Depth buffer (multiple Dinge, no z-fighting) |
-| 5 | Textures + sampler (textured cube, PNG loading) |
+| # | Status | Goal |
+|---|---|---|
+| 0 | ✅ | **Triangle** — shader-baked positions, no vertex buffer |
+| 1 | ✅ | **Vertex + Uniform buffer** — `Vertex` struct, GPU upload, MVP matrix pushed as uniform, movable triangle |
+| 2 | ✅ | **Camera + Math** — `mat4_ortho` (centered, 1 unit = 1 px), `camera_pos`, `view_proj_mat`, 300 px/s movement |
+| 3 | | Mesh system (quad/sprite, index buffer, `render_ding` → GPU draw) |
+| 4 | | Multiple Dinge rendered via GPU (depth buffer if needed) |
+| 5 | | Textures + sampler (PNG loading, textured sprites) |
 
 ---
 

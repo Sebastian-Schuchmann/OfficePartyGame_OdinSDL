@@ -11,10 +11,15 @@ WINDOW_HEIGHT: i32 = 1000
 window: ^sdl.Window
 dt_ms:  f64 = 0.0
 
-left_btn_down:  bool = false
-right_btn_down: bool = false
-up_btn_down:    bool = false
-down_btn_down:  bool = false
+w_key_down: bool
+a_key_down: bool
+s_key_down: bool
+d_key_down: bool
+q_key_down: bool
+e_key_down: bool
+
+mouse_dx: f32
+mouse_dy: f32
 
 main :: proc() {
 	_ = sdl.Init({.VIDEO})
@@ -27,6 +32,8 @@ main :: proc() {
 
 	game_init()
 
+	_ = sdl.SetWindowRelativeMouseMode(window, true)
+
 	main_loop: for {
 		ev: sdl.Event
 
@@ -35,22 +42,32 @@ main :: proc() {
 		dt_ms  = cast(f64)dt / 1e6
 		fps   := 1000.0 / dt_ms
 
+		mouse_dx = 0
+		mouse_dy = 0
+
 		for sdl.PollEvent(&ev) {
 			#partial switch ev.type {
 			case .QUIT:
 				break main_loop
 			case .KEY_DOWN:
 				if ev.key.scancode == .ESCAPE do break main_loop
-				if ev.key.scancode == .LEFT   do left_btn_down = true
-				if ev.key.scancode == .RIGHT  do right_btn_down = true
-				if ev.key.scancode == .UP     do up_btn_down = true
-				if ev.key.scancode == .DOWN   do down_btn_down = true
+				if ev.key.scancode == .W do w_key_down = true
+				if ev.key.scancode == .A do a_key_down = true
+				if ev.key.scancode == .S do s_key_down = true
+				if ev.key.scancode == .D do d_key_down = true
+				if ev.key.scancode == .Q do q_key_down = true
+				if ev.key.scancode == .E do e_key_down = true
 			case .KEY_UP:
-				if ev.key.scancode == .LEFT   do left_btn_down = false
-				if ev.key.scancode == .RIGHT  do right_btn_down = false
-				if ev.key.scancode == .UP     do up_btn_down = false
-				if ev.key.scancode == .DOWN   do down_btn_down = false
-				if ev.key.scancode == .B      do DEBUG = !DEBUG
+				if ev.key.scancode == .W do w_key_down = false
+				if ev.key.scancode == .A do a_key_down = false
+				if ev.key.scancode == .S do s_key_down = false
+				if ev.key.scancode == .D do d_key_down = false
+				if ev.key.scancode == .Q do q_key_down = false
+				if ev.key.scancode == .E do e_key_down = false
+				if ev.key.scancode == .B do DEBUG = !DEBUG
+			case .MOUSE_MOTION:
+				mouse_dx += ev.motion.xrel
+				mouse_dy += ev.motion.yrel
 			}
 		}
 
