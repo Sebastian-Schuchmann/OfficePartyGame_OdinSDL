@@ -1,5 +1,7 @@
 package main
 
+triangle_pos: Vec2
+
 player := Ding {
 	pos    = Vec2{cast(f32)WINDOW_WIDTH / 2 - 60, cast(f32)WINDOW_HEIGHT / 2 - 60 + 200},
 	color  = COLOR_PLAYER,
@@ -27,10 +29,11 @@ game_reset :: proc() {
 }
 
 game_loop :: proc() {
-	SPEED := player.speed
-	left_right_speed := left_btn_down ? SPEED * -1 : right_btn_down ? SPEED : 0.0
+	SPEED: f32 = 0.001
+	if left_btn_down  do triangle_pos.x -= SPEED * cast(f32)dt_ms
+	if right_btn_down do triangle_pos.x += SPEED * cast(f32)dt_ms
+	if up_btn_down    do triangle_pos.y += SPEED * cast(f32)dt_ms
+	if down_btn_down  do triangle_pos.y -= SPEED * cast(f32)dt_ms
 
-	gpu_draw_triangle()
-
-	move_ding(&player, Vec2{left_right_speed, 0.0})
+	gpu_draw_triangle(triangle_pos)
 }
