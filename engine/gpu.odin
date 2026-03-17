@@ -39,9 +39,10 @@ LitMatUniforms :: struct {
 	_pad:      [2]f32,
 }
 
-gpu_device:         ^sdl.GPUDevice
-gpu_pipeline_unlit: ^sdl.GPUGraphicsPipeline
-gpu_pipeline_lit:   ^sdl.GPUGraphicsPipeline
+gpu_device:               ^sdl.GPUDevice
+gpu_pipeline_unlit:       ^sdl.GPUGraphicsPipeline
+gpu_pipeline_lit:         ^sdl.GPUGraphicsPipeline
+gpu_pipeline_textured_lit: ^sdl.GPUGraphicsPipeline
 
 gpu_cmd_buf:       ^sdl.GPUCommandBuffer
 gpu_render_pass:   ^sdl.GPURenderPass
@@ -105,7 +106,8 @@ gpu_create_mesh :: proc(verts: []Vertex, indices: []u16) -> GpuMesh {
 }
 
 gpu_build_pipeline :: proc(msl_path: string, vert_entry, frag_entry: cstring,
-	vert_uniform_bufs, frag_uniform_bufs: u32, swapchain_fmt: sdl.GPUTextureFormat) -> ^sdl.GPUGraphicsPipeline {
+	vert_uniform_bufs, frag_uniform_bufs, frag_samplers: u32,
+	swapchain_fmt: sdl.GPUTextureFormat) -> ^sdl.GPUGraphicsPipeline {
 	msl_bytes, _ := os.read_entire_file(msl_path)
 
 	vert_shader := sdl.CreateGPUShader(gpu_device, {
@@ -124,6 +126,7 @@ gpu_build_pipeline :: proc(msl_path: string, vert_entry, frag_entry: cstring,
 		code                = raw_data(msl_bytes),
 		entrypoint          = frag_entry,
 		num_uniform_buffers = frag_uniform_bufs,
+		num_samplers        = frag_samplers,
 	})
 
 	pipeline := sdl.CreateGPUGraphicsPipeline(gpu_device, {
@@ -182,16 +185,25 @@ gpu_init :: proc(window: ^sdl.Window) {
 	gpu_pipeline_unlit = gpu_build_pipeline(
 		"shaders/unlit.metal",
 		"vert_main", "frag_main",
-		1, 1,
+		1, 1, 0,
 		swapchain_fmt,
 	)
 
 	gpu_pipeline_lit = gpu_build_pipeline(
 		"shaders/lit.metal",
 		"vert_main", "frag_main",
-		1, 3,
+		1, 3, 0,
 		swapchain_fmt,
 	)
+
+	gpu_pipeline_textured_lit = gpu_build_pipeline(
+		"shaders/textured_lit.metal",
+		"vert_main", "frag_main",
+		1, 3, 1,
+		swapchain_fmt,
+	)
+
+	gpu_texture_init()
 }
 
 gpu_begin_frame :: proc(window: ^sdl.Window) -> bool {
@@ -245,8 +257,20 @@ gpu_draw_mesh :: proc(mesh: GpuMesh, model_mat: Mat4, mat: ^Material, view_proj_
 		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 1, &gpu_dir_light, size_of(gpu_dir_light))
 		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 2, &vu, size_of(vu))
 	case .TEXTURED_LIT:
-		// M11: textured pipeline not yet built
-		return
+		if mat.albedo_tex == nil do return
+		sdl.BindGPUGraphicsPipeline(gpu_render_pass, gpu_pipeline_textured_lit)
+		sdl.PushGPUVertexUniformData(gpu_cmd_buf, 0, &vu, size_of(vu))
+		lm := LitMatUniforms{
+			albedo    = mat.color,
+			specular  = mat.specular,
+			shininess = mat.shininess,
+		}
+		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 0, &lm, size_of(lm))
+		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 1, &gpu_dir_light, size_of(gpu_dir_light))
+		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 2, &vu, size_of(vu))
+		smp := mat.sampler if mat.sampler != nil else gpu_default_sampler
+		tex_binding := sdl.GPUTextureSamplerBinding{texture = mat.albedo_tex, sampler = smp}
+		sdl.BindGPUFragmentSamplers(gpu_render_pass, 0, &tex_binding, 1)
 	}
 
 	v_binding := sdl.GPUBufferBinding{buffer = mesh.vertex_buf}
