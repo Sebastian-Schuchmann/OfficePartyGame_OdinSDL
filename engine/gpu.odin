@@ -4,10 +4,15 @@ import "core:mem"
 import "core:os"
 import sdl "vendor:sdl3"
 
+// Vertex format used by all shaders.
+// pos: world/object-space position
+// normal: face/vertex normal (required even for unlit — vertex format is fixed)
+// uv: texture coordinates (0..1)
 Vertex :: struct {
-	pos: [3]f32,
-	col: [4]f32,
-}
+	pos:    [3]f32, // offset 0,  12 bytes
+	normal: [3]f32, // offset 12, 12 bytes
+	uv:     [2]f32, // offset 24,  8 bytes
+} // total: 32 bytes
 
 GpuMesh :: struct {
 	vertex_buf:  ^sdl.GPUBuffer,
@@ -15,12 +20,24 @@ GpuMesh :: struct {
 	index_count: u32,
 }
 
-gpu_device:   ^sdl.GPUDevice
-gpu_pipeline: ^sdl.GPUGraphicsPipeline
+// Uniform structs (mirroring Metal shader structs)
+VertUniforms :: struct {
+	mvp:   Mat4,
+	model: Mat4,
+}
 
-gpu_cmd_buf:      ^sdl.GPUCommandBuffer
-gpu_render_pass:  ^sdl.GPURenderPass
+UnlitMatUniforms :: struct {
+	color: [4]f32,
+}
+
+gpu_device:   ^sdl.GPUDevice
+gpu_pipeline_unlit: ^sdl.GPUGraphicsPipeline
+
+gpu_cmd_buf:       ^sdl.GPUCommandBuffer
+gpu_render_pass:   ^sdl.GPURenderPass
 gpu_depth_texture: ^sdl.GPUTexture
+
+gpu_dir_light: DirLight // set by game each frame
 
 DEPTH_FORMAT :: sdl.GPUTextureFormat.D32_FLOAT
 
@@ -76,6 +93,71 @@ gpu_create_mesh :: proc(verts: []Vertex, indices: []u16) -> GpuMesh {
 	}
 }
 
+gpu_build_pipeline :: proc(msl_path: string, vert_entry, frag_entry: cstring,
+	vert_uniform_bufs, frag_uniform_bufs: u32, swapchain_fmt: sdl.GPUTextureFormat) -> ^sdl.GPUGraphicsPipeline {
+	msl_bytes, _ := os.read_entire_file(msl_path)
+
+	vert_shader := sdl.CreateGPUShader(gpu_device, {
+		format              = {.MSL},
+		stage               = .VERTEX,
+		code_size           = len(msl_bytes),
+		code                = raw_data(msl_bytes),
+		entrypoint          = vert_entry,
+		num_uniform_buffers = vert_uniform_bufs,
+	})
+
+	frag_shader := sdl.CreateGPUShader(gpu_device, {
+		format              = {.MSL},
+		stage               = .FRAGMENT,
+		code_size           = len(msl_bytes),
+		code                = raw_data(msl_bytes),
+		entrypoint          = frag_entry,
+		num_uniform_buffers = frag_uniform_bufs,
+	})
+
+	pipeline := sdl.CreateGPUGraphicsPipeline(gpu_device, {
+		vertex_shader   = vert_shader,
+		fragment_shader = frag_shader,
+		primitive_type  = .TRIANGLELIST,
+		vertex_input_state = {
+			num_vertex_buffers         = 1,
+			vertex_buffer_descriptions = &sdl.GPUVertexBufferDescription{
+				slot       = 0,
+				pitch      = size_of(Vertex),
+				input_rate = .VERTEX,
+			},
+			num_vertex_attributes = 3,
+			vertex_attributes     = raw_data(
+				[]sdl.GPUVertexAttribute{
+					{location = 0, buffer_slot = 0, format = .FLOAT3, offset = 0},
+					{location = 1, buffer_slot = 0, format = .FLOAT3, offset = 12},
+					{location = 2, buffer_slot = 0, format = .FLOAT2, offset = 24},
+				},
+			),
+		},
+		rasterizer_state = {
+			cull_mode  = .BACK,
+			front_face = .COUNTER_CLOCKWISE,
+		},
+		depth_stencil_state = {
+			enable_depth_test  = true,
+			enable_depth_write = true,
+			compare_op         = .LESS,
+		},
+		target_info = {
+			num_color_targets         = 1,
+			color_target_descriptions = &sdl.GPUColorTargetDescription{format = swapchain_fmt},
+			has_depth_stencil_target  = true,
+			depth_stencil_format      = DEPTH_FORMAT,
+		},
+	})
+
+	sdl.ReleaseGPUShader(gpu_device, vert_shader)
+	sdl.ReleaseGPUShader(gpu_device, frag_shader)
+
+	return pipeline
+}
+
 gpu_init :: proc(window: ^sdl.Window) {
 	gpu_device = sdl.CreateGPUDevice({.MSL}, true, nil)
 	_ = sdl.ClaimWindowForGPUDevice(gpu_device, window)
@@ -84,74 +166,14 @@ gpu_init :: proc(window: ^sdl.Window) {
 	sdl.GetWindowSize(window, &w, &h)
 	gpu_create_depth_texture(u32(w), u32(h))
 
-	msl_bytes, _ := os.read_entire_file("shaders/triangle.metal")
-
-	vert_shader := sdl.CreateGPUShader(
-		gpu_device,
-		{
-			format              = {.MSL},
-			stage               = .VERTEX,
-			code_size           = len(msl_bytes),
-			code                = raw_data(msl_bytes),
-			entrypoint          = "vert_main",
-			num_uniform_buffers = 1,
-		},
-	)
-
-	frag_shader := sdl.CreateGPUShader(
-		gpu_device,
-		{
-			format     = {.MSL},
-			stage      = .FRAGMENT,
-			code_size  = len(msl_bytes),
-			code       = raw_data(msl_bytes),
-			entrypoint = "frag_main",
-		},
-	)
-
 	swapchain_fmt := sdl.GetGPUSwapchainTextureFormat(gpu_device, window)
 
-	gpu_pipeline = sdl.CreateGPUGraphicsPipeline(
-		gpu_device,
-		{
-			vertex_shader   = vert_shader,
-			fragment_shader = frag_shader,
-			primitive_type  = .TRIANGLELIST,
-			vertex_input_state = {
-				num_vertex_buffers         = 1,
-				vertex_buffer_descriptions = &sdl.GPUVertexBufferDescription {
-					slot       = 0,
-					pitch      = size_of(Vertex),
-					input_rate = .VERTEX,
-				},
-				num_vertex_attributes = 2,
-				vertex_attributes     = raw_data(
-					[]sdl.GPUVertexAttribute {
-						{location = 0, buffer_slot = 0, format = .FLOAT3, offset = 0},
-						{location = 1, buffer_slot = 0, format = .FLOAT4, offset = size_of([3]f32)},
-					},
-				),
-			},
-			rasterizer_state = {
-				cull_mode  = .BACK,
-				front_face = .COUNTER_CLOCKWISE,
-			},
-			depth_stencil_state = {
-				enable_depth_test  = true,
-				enable_depth_write = true,
-				compare_op         = .LESS,
-			},
-			target_info = {
-				num_color_targets         = 1,
-				color_target_descriptions = &sdl.GPUColorTargetDescription{format = swapchain_fmt},
-				has_depth_stencil_target  = true,
-				depth_stencil_format      = DEPTH_FORMAT,
-			},
-		},
+	gpu_pipeline_unlit = gpu_build_pipeline(
+		"shaders/unlit.metal",
+		"vert_main", "frag_main",
+		1, 1,
+		swapchain_fmt,
 	)
-
-	sdl.ReleaseGPUShader(gpu_device, vert_shader)
-	sdl.ReleaseGPUShader(gpu_device, frag_shader)
 }
 
 gpu_begin_frame :: proc(window: ^sdl.Window) -> bool {
@@ -160,13 +182,13 @@ gpu_begin_frame :: proc(window: ^sdl.Window) -> bool {
 	_ = sdl.AcquireGPUSwapchainTexture(gpu_cmd_buf, window, &swapchain, nil, nil)
 	if swapchain == nil do return false
 
-	color_target := sdl.GPUColorTargetInfo {
+	color_target := sdl.GPUColorTargetInfo{
 		texture     = swapchain,
 		load_op     = .CLEAR,
 		clear_color = {0, 0.2, 0.4, 1},
 		store_op    = .STORE,
 	}
-	depth_target := sdl.GPUDepthStencilTargetInfo {
+	depth_target := sdl.GPUDepthStencilTargetInfo{
 		texture          = gpu_depth_texture,
 		load_op          = .CLEAR,
 		clear_depth      = 1.0,
@@ -175,7 +197,6 @@ gpu_begin_frame :: proc(window: ^sdl.Window) -> bool {
 		stencil_store_op = .DONT_CARE,
 	}
 	gpu_render_pass = sdl.BeginGPURenderPass(gpu_cmd_buf, &color_target, 1, &depth_target)
-	sdl.BindGPUGraphicsPipeline(gpu_render_pass, gpu_pipeline)
 	return true
 }
 
@@ -184,9 +205,20 @@ gpu_end_frame :: proc() {
 	_ = sdl.SubmitGPUCommandBuffer(gpu_cmd_buf)
 }
 
-gpu_draw_mesh :: proc(mesh: GpuMesh, pos: Vec3, view_proj_mat: Mat4) {
-	mvp := view_proj_mat * mat4_translate3(pos)
-	sdl.PushGPUVertexUniformData(gpu_cmd_buf, 0, &mvp, size_of(mvp))
+gpu_draw_mesh :: proc(mesh: GpuMesh, model_mat: Mat4, mat: ^Material, view_proj_mat: Mat4) {
+	mvp := view_proj_mat * model_mat
+
+	switch mat.shader {
+	case .UNLIT:
+		sdl.BindGPUGraphicsPipeline(gpu_render_pass, gpu_pipeline_unlit)
+		vu := VertUniforms{mvp = mvp, model = model_mat}
+		sdl.PushGPUVertexUniformData(gpu_cmd_buf, 0, &vu, size_of(vu))
+		um := UnlitMatUniforms{color = mat.color}
+		sdl.PushGPUFragmentUniformData(gpu_cmd_buf, 0, &um, size_of(um))
+	case .LIT, .TEXTURED_LIT:
+		// M10/M11: lit pipelines not yet built
+		return
+	}
 
 	v_binding := sdl.GPUBufferBinding{buffer = mesh.vertex_buf}
 	i_binding := sdl.GPUBufferBinding{buffer = mesh.index_buf}
@@ -195,8 +227,9 @@ gpu_draw_mesh :: proc(mesh: GpuMesh, pos: Vec3, view_proj_mat: Mat4) {
 	sdl.DrawGPUIndexedPrimitives(gpu_render_pass, mesh.index_count, 1, 0, 0, 0)
 }
 
-// Draw a Ding at its pos3 using its mesh. No-op if mesh is not set.
+// Draw a Ding at its pos3 using its mesh and material.
+// No-op if mesh or material is not set.
 gpu_draw_ding :: proc(ding: Ding, view_proj_mat: Mat4) {
-	if ding.mesh.vertex_buf == nil do return
-	gpu_draw_mesh(ding.mesh, ding.pos3, view_proj_mat)
+	if ding.mesh.vertex_buf == nil || ding.material == nil do return
+	gpu_draw_mesh(ding.mesh, mat4_translate3(ding.pos3), ding.material, view_proj_mat)
 }

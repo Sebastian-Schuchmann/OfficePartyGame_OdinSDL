@@ -28,7 +28,8 @@ Ding :: struct {
 	fov:               f32,
 	mouse_sensitivity: f32,
 	// 3D mesh (zero if unused — Ding is drawn via gpu_draw_ding only if mesh.vertex_buf != nil)
-	mesh: GpuMesh,
+	mesh:     GpuMesh,
+	material: ^Material, // nil = skip draw
 	// Shared
 	speed:             f32,
 	type:              DingType,
